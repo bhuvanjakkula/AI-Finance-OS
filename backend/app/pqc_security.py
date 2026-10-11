@@ -21,22 +21,33 @@ def canonical(value): return json.dumps(value,sort_keys=True,separators=(',',':'
 def key_path():
     local=Path(os.getenv('LOCALAPPDATA',str(Path.home()/'.local/share')))/'AIFinanceOS/security/keyring.json'
     return Path(os.getenv('FINANCE_KEYRING_FILE',str(local)))
-@lru_cache(maxsize=4)
+KEY_REGISTRY = {}
+
+@lru_cache(maxsize=16)
 def load_keys(path):
     data=json.loads(Path(path).read_text())
     if data.get('format')!='finance-keyring-v1': raise ValueError('Invalid keyring format')
-    return data,MLKEM768PrivateKey.from_seed_bytes(decode(data['kem_seed'])),MLDSA65PrivateKey.from_seed_bytes(decode(data['signing_seed']))
+    res = (data,MLKEM768PrivateKey.from_seed_bytes(decode(data['kem_seed'])),MLDSA65PrivateKey.from_seed_bytes(decode(data['signing_seed'])))
+    KEY_REGISTRY[data['key_id']] = res
+    return res
 def keys():
     path=key_path()
     if not path.is_file():
-        if os.getenv('FINANCE_ENV')=='production' or os.getenv('FINANCE_REQUIRE_ENCRYPTION','true').lower()=='true': raise RuntimeError('Encryption keyring required; initialize offline before starting')
-        return None
-    return load_keys(str(path.resolve()))
+        try:
+            initialize(path)
+            return load_keys(str(path.resolve()))
+        except Exception:
+            if os.getenv('FINANCE_ENV')=='production' and os.getenv('FINANCE_REQUIRE_ENCRYPTION','false').lower()=='true':
+                raise RuntimeError('Encryption keyring required; initialize offline before starting')
+            return None
+    res = load_keys(str(path.resolve()))
+    if res: KEY_REGISTRY[res[0]['key_id']] = res
+    return res
 def initialize(path):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     kem=MLKEM768PrivateKey.generate();sign=MLDSA65PrivateKey.generate()
     data={'format':'finance-keyring-v1','key_id':os.urandom(16).hex(),'kem_seed':encode(kem.private_bytes_raw()),'signing_seed':encode(sign.private_bytes_raw())}
-    with path.open('x',encoding='utf-8') as file: json.dump(data,file)
+    with path.open('w',encoding='utf-8') as file: json.dump(data,file)
     if os.name!='nt': path.chmod(0o600)
     return {'key_id':data['key_id'],'signing_public_key':encode(sign.public_key().public_bytes_raw())}
 def seal(content,context):
@@ -54,9 +65,20 @@ def unseal(content,context):
     if not content.startswith(PREFIX):
         if os.getenv('FINANCE_ENV')=='production': raise ValueError('Unencrypted legacy data requires migration')
         return content
-    loaded=keys()
-    if loaded is None: raise RuntimeError('Encrypted storage key unavailable')
-    data,kem,_=loaded;header=json.loads(content[len(PREFIX):])
+    header=json.loads(content[len(PREFIX):])
+    target_key_id = header.get('key_id')
+    loaded = KEY_REGISTRY.get(target_key_id)
+    if loaded is None:
+        curr = keys()
+        if curr is not None:
+            KEY_REGISTRY[curr[0]['key_id']] = curr
+            if curr[0]['key_id'] == target_key_id:
+                loaded = curr
+    if loaded is None:
+        curr = keys()
+        if curr is None: raise RuntimeError('Encrypted storage key unavailable')
+        raise ValueError('Unknown crypto suite or key ID')
+    data,kem,_ = loaded
     if header['suite']!=SUITE or header['key_id']!=data['key_id']: raise ValueError('Unknown crypto suite or key ID')
     ciphertext=decode(header.pop('ciphertext'));aad=canonical(header)+b'\x00'+context.encode()
     secret=kem.decapsulate(decode(header['kem']))

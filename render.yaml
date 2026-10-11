@@ -24,6 +24,10 @@ services:
         value: "*"
       - key: FINANCE_AUTO_CREATE
         value: "true"
+      - key: FINANCE_REQUIRE_ENCRYPTION
+        value: "false"
+      - key: FINANCE_KEYRING_FILE
+        value: /srv/keyring.json
 
   - type: worker
     name: ai-finance-os-worker
@@ -38,3 +42,7 @@ services:
         value: 3.12.0
       - key: FINANCE_ENV
         value: development
+      - key: FINANCE_REQUIRE_ENCRYPTION
+        value: "false"
+      - key: FINANCE_KEYRING_FILE
+        value: /srv/keyring.json

@@ -39,7 +39,7 @@ _cors_raw = os.getenv('CORS_ORIGINS', '*')
 _allowed_origins = ['*'] if _cors_raw == '*' else [o.strip() for o in _cors_raw.split(',') if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_methods=['*'], allow_headers=['*'], allow_credentials=False if '*' in _allowed_origins else True)
 app.add_middleware(SecurityHeaders)
-_hosts_raw = os.getenv('FINANCE_ALLOWED_HOSTS', '*')
+_hosts_raw = os.getenv('FINANCE_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver')
 _allowed_hosts = ['*'] if _hosts_raw == '*' else [h.strip() for h in _hosts_raw.split(',') if h.strip()]
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 
