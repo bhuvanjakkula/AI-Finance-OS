@@ -1,0 +1,4 @@
+external_id,date,account,currency,debit,credit,description
+sample-1,2026-09-30,Cash,USD,1000,0,Payment
+sample-2,2026-09-30,Revenue,USD,0,1000,Revenue
+sample-3,2026-09-30,Suspense,USD,0,0,Zero amount anomaly

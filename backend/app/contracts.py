@@ -1,0 +1,180 @@
+"""Strict canonical contracts. Decimal strings are used throughout wire formats."""
+from datetime import date
+from decimal import Decimal
+from typing import Literal, Annotated
+from pydantic import BaseModel, Field, ConfigDict, AfterValidator, SecretStr
+
+def money(v):
+    if not v.is_finite() or abs(v)>=Decimal('1000000000000000000') or v!=v.quantize(Decimal('.01')):
+        raise ValueError('Amount must be finite, below 10^18, with at most two decimals')
+    return v
+Money=Annotated[Decimal,AfterValidator(money)]
+def currency(v):
+    if len(v)!=3 or not v.isascii() or not v.isalpha(): raise ValueError('Use a three-letter currency code')
+    return v.upper()
+Currency=Annotated[str,AfterValidator(currency)]
+class Contract(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+class Register(Contract):
+    organization: str=Field(min_length=1,max_length=160)
+    slug: str=Field(pattern=r'^[a-z0-9-]{3,60}$')
+    name: str=Field(min_length=1,max_length=120)
+    email: str=Field(min_length=3,max_length=200,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    password: SecretStr=Field(min_length=12,max_length=200)
+class Login(Contract):
+    slug: str=Field(max_length=60)
+    email: str=Field(max_length=200)
+    password: SecretStr=Field(max_length=200)
+class Member(Contract):
+    name: str=Field(min_length=1,max_length=120)
+    email: str=Field(min_length=3,max_length=200,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    password: SecretStr=Field(min_length=12,max_length=200)
+    role: Literal['controller','analyst','auditor']
+class EntityInput(Contract):
+    code: str=Field(min_length=1,max_length=40)
+    name: str=Field(min_length=1,max_length=160)
+    currency: Currency
+    parent_id: str|None=None
+class AccountInput(Contract):
+    code: str=Field(min_length=1,max_length=80)
+    name: str=Field(min_length=1,max_length=160)
+    category: Literal['asset','liability','equity','revenue','expense']
+    group_code: str=Field(min_length=1,max_length=80)
+    is_cash: bool=False
+class JournalLineInput(Contract):
+    account_code: str=Field(min_length=1,max_length=80)
+    debit: Money=Field(default=Decimal('0'),ge=0)
+    credit: Money=Field(default=Decimal('0'),ge=0)
+    reference: str=Field(default='',max_length=160)
+class JournalInput(Contract):
+    external_id: str=Field(min_length=1,max_length=160)
+    posting_date: date
+    transaction_date: date|None=None
+    currency: Currency
+    description: str=Field(default='',max_length=500)
+    version: int=Field(default=1,ge=1,le=1000000)
+    lines: list[JournalLineInput]=Field(min_length=2,max_length=500)
+class JournalBatch(Contract):
+    entity_id: str
+    connection_id: str=Field(default='manual',min_length=1,max_length=100)
+    journals: list[JournalInput]=Field(min_length=1,max_length=1000)
+class IntegrationInput(Contract):
+    entity_id: str
+    connection_id: str=Field(default='manual',min_length=1,max_length=100)
+    event_id: str=Field(min_length=1,max_length=160)
+    external_id: str=Field(min_length=1,max_length=160)
+    version: int=Field(ge=1,le=1000000)
+    operation: Literal['upsert','delete','restore']
+    occurred_at: str=Field(min_length=1,max_length=80)
+    reason: str=Field(min_length=3,max_length=500)
+    journal: JournalInput|None=None
+class ReconciliationPolicyInput(Contract):
+    max_pending_seconds: int=Field(default=300,ge=1,le=86400)
+    max_source_age_seconds: int=Field(default=3600,ge=1,le=604800)
+    reconciliation_interval_seconds: int=Field(default=30,ge=5,le=3600)
+class ManifestRecord(Contract):
+    external_id: str=Field(min_length=1,max_length=160)
+    version: int=Field(ge=1,le=1000000)
+    payload_hash: str=Field(pattern=r'^[0-9a-f]{64}$')
+    tombstone: bool=False
+class SourceManifest(Contract):
+    entity_id: str
+    connection_id: str=Field(default='manual',min_length=1,max_length=100)
+    observed_at: str=Field(min_length=1,max_length=80)
+    watermark: str=Field(min_length=1,max_length=160)
+    records: list[ManifestRecord]=Field(max_length=10000)
+class TaskInput(Contract):
+    entity_id: str
+    title: str=Field(min_length=1,max_length=200)
+    owner_id: str
+    due_date: date
+    period: str=Field(pattern=r'^\d{4}-(0[1-9]|1[0-2])$')
+    depends_on: list[str]=Field(default_factory=list,max_length=100)
+class TaskState(Contract):
+    status: Literal['todo','in_progress','complete']
+class CloseReadinessInput(Contract):
+    entity_id: str
+    period: str=Field(pattern=r'^\d{4}-(0[1-9]|1[0-2])$')
+class ProposalInput(Contract):
+    entity_id: str
+    reason: str=Field(min_length=5,max_length=500)
+    journal: JournalInput
+class Decision(Contract):
+    decision: Literal['approved','rejected']
+    note: str=Field(min_length=3,max_length=500)
+class BankInput(Contract):
+    external_id: str=Field(min_length=1,max_length=160)
+    date: date
+    amount: Money
+    reference: str=Field(default='',max_length=160)
+    currency: Currency
+class BankBatch(Contract):
+    entity_id: str
+    transactions: list[BankInput]=Field(min_length=1,max_length=2000)
+class MatchInput(Contract):
+    bank_id: str
+    line_id: str
+class PaymentInput(Contract):
+    entity_id: str
+    reference: str=Field(min_length=1,max_length=160)
+    due_date: date
+    amount: Money=Field(gt=0)
+    direction: Literal['inflow','outflow']
+class ForecastInput(Contract):
+    entity_id: str
+    start_date: date
+    opening_cash: Money
+    collection_delay_days: int=Field(default=0,ge=0,le=90)
+    inflow_factor: Decimal=Field(default=Decimal('1'),ge=0,le=3,allow_inf_nan=False)
+    outflow_factor: Decimal=Field(default=Decimal('1'),ge=0,le=3,allow_inf_nan=False)
+class PeriodActionInput(Contract):
+    entity_id: str
+    period: str=Field(pattern=r'^\d{4}-(0[1-9]|1[0-2])$')
+    action: Literal['submit','approve','reject','reopen']
+    note: str=Field(min_length=5,max_length=500)
+
+class BudgetExceptionInput(Contract):
+    entity_id: str
+    period: str=Field(pattern=r'^\d{4}-(0[1-9]|1[0-2])$')
+    materiality: Money=Field(default=Decimal('1000'),ge=0)
+
+class LiquidityLimitInput(Contract):
+    forecast_id: str
+    reserve: Money=Field(default=Decimal('0'),ge=0)
+
+class TreasuryStressInput(Contract):
+    forecast_id: str
+    reserve: Money=Field(default=Decimal('0'),ge=0)
+    collection_delay_weeks: int=Field(default=2,ge=0,le=12)
+    inflow_factor: Decimal=Field(default=Decimal('0.70'),ge=0,le=3,allow_inf_nan=False)
+    outflow_factor: Decimal=Field(default=Decimal('1.20'),ge=0,le=3,allow_inf_nan=False)
+
+class ConsolidationInput(Contract):
+    entity_ids: list[str]=Field(min_length=1,max_length=50)
+    period: str=Field(pattern=r'^\d{4}-(0[1-9]|1[0-2])$')
+    group_currency: Currency
+    rates: dict[str,Decimal]
+    approved_elimination_ids: list[str]=Field(default_factory=list,max_length=100)
+class MappingInput(Contract):
+    entity_id: str
+    connection_id: str=Field(default='legacy-csv',max_length=100)
+    mapping: dict[str,str]
+class ConnectionInput(Contract):
+    entity_id: str
+    name: str=Field(min_length=1,max_length=100)
+    provider: Literal['business_central','netsuite']
+    config: dict
+    credential_env: str=Field(pattern=r'^FINANCE_SECRET_[A-Z0-9_]{1,70}$')
+class AgentInput(Contract):
+    finding_id: str
+    provider: Literal['rules','openai']='rules'
+
+class BudgetInput(Contract):
+    entity_id: str
+    period: str=Field(pattern=r'^\d{4}-(0[1-9]|1[0-2])$')
+    account_code: str
+    amount: Money=Field(ge=0)
+    version: int=Field(default=1,ge=1)
+class EliminationInput(Contract):
+    source_run_id: str
+    reason: str=Field(min_length=5,max_length=500)
