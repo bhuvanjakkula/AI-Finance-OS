@@ -130,6 +130,84 @@ def login(body:Login,request:Request,db:Session=Depends(db_session)):
     finance.audit(db,Principal(user.org_id,user.id,user.role,user.name),'user_signed_in',user.id)
     return issue_session(db,user)
 
+def _send_password_reset_email(to_email:str,reset_url:str)->bool:
+    host=os.getenv('SMTP_HOST','').strip()
+    if not host: return False
+    import smtplib
+    from email.message import EmailMessage
+    port=int(os.getenv('SMTP_PORT','587'))
+    smtp_user=os.getenv('SMTP_USER','').strip()
+    smtp_password=os.getenv('SMTP_PASSWORD','')
+    sender=os.getenv('SMTP_FROM','contact@apolloaiglobalcompany.com').strip()
+    msg=EmailMessage()
+    msg['Subject']='AI Finance OS - Update Your Password'
+    msg['From']=sender
+    msg['To']=to_email
+    msg.set_content(
+        f"Hello,\n\nWe received a request to reset your AI Finance OS password.\n\n"
+        f"Click the link below to set a new password (valid for 30 minutes):\n{reset_url}\n\n"
+        f"If you did not request this change, you can safely ignore this email or contact {sender}.\n"
+    )
+    with smtplib.SMTP(host,port,timeout=10) as server:
+        if os.getenv('SMTP_TLS','true').lower()!='false': server.starttls()
+        if smtp_user: server.login(smtp_user,smtp_password)
+        server.send_message(msg)
+    return True
+
+@app.post('/auth/forgot-password')
+def forgot_password(body:ForgotPasswordInput,request:Request,db:Session=Depends(db_session)):
+    email=body.email.strip().lower()
+    login_limit(request,'forgot-password:'+email)
+    user=None
+    if body.slug and body.slug.strip():
+        org=db.scalar(select(Organization).where(Organization.slug==body.slug.strip()))
+        if org: user=db.scalar(select(User).where(User.org_id==org.id,User.email==email))
+    else:
+        user=db.scalar(select(User).where(User.email==email))
+    generic_msg='If an account with that registered email exists, an update password link has been sent.'
+    if not user:
+        return {'sent':True,'email_delivered':False,'message':generic_msg}
+    token=secrets.token_urlsafe(32)
+    expires_at=datetime.now(timezone.utc)+timedelta(minutes=30)
+    db.add(PasswordResetToken(token_hash=digest(token),user_id=user.id,expires_at=expires_at))
+    finance.audit(db,Principal(user.org_id,user.id,user.role,user.name),'password_reset_requested',user.id)
+    db.commit()
+    base_url=(os.getenv('FRONTEND_URL') or request.headers.get('origin') or 'https://ai-finance-os-drab.vercel.app').rstrip('/')
+    reset_url=f'{base_url}/?reset_token={token}'
+    delivered=False
+    try:
+        delivered=_send_password_reset_email(user.email,reset_url)
+    except Exception:
+        delivered=False
+    resp={'sent':True,'email_delivered':delivered,'message':generic_msg}
+    if not delivered and os.getenv('FINANCE_ENV','development')!='production':
+        resp['reset_url']=reset_url
+    return resp
+
+@app.post('/auth/reset-password')
+def reset_password(body:ResetPasswordInput,request:Request,db:Session=Depends(db_session)):
+    login_limit(request,'reset-password')
+    new_pw=body.new_password.get_secret_value()
+    confirm_pw=body.confirm_password.get_secret_value()
+    if new_pw!=confirm_pw:
+        raise HTTPException(422,'New password and confirmation password do not match')
+    row=db.get(PasswordResetToken,digest(body.token.strip()))
+    if not row or row.used_at is not None:
+        raise HTTPException(400,'Password reset link is invalid or has already been used')
+    exp=row.expires_at.replace(tzinfo=timezone.utc) if row.expires_at.tzinfo is None else row.expires_at
+    if exp<=datetime.now(timezone.utc):
+        raise HTTPException(400,'Password reset link has expired')
+    user=db.get(User,row.user_id)
+    if not user:
+        raise HTTPException(404,'User unavailable')
+    user.password_hash=password_hash(new_pw)
+    row.used_at=datetime.now(timezone.utc)
+    for session in db.scalars(select(AuthSession).where(AuthSession.user_id==user.id)).all():
+        db.delete(session)
+    finance.audit(db,Principal(user.org_id,user.id,user.role,user.name),'password_reset_completed',user.id)
+    db.commit()
+    return {'updated':True,'message':'Password updated successfully. You can now sign in with your new password.'}
+
 @app.get('/auth/me')
 def me(actor:Principal=Depends(principal),db:Session=Depends(db_session)):
     organization=db.get(Organization,actor.org_id)

@@ -25,6 +25,13 @@ class Login(Contract):
     slug: str=Field(max_length=60)
     email: str=Field(max_length=200)
     password: SecretStr=Field(max_length=200)
+class ForgotPasswordInput(Contract):
+    email: str=Field(min_length=3,max_length=200,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    slug: str|None=Field(default=None,max_length=60)
+class ResetPasswordInput(Contract):
+    token: str=Field(min_length=16,max_length=200)
+    new_password: SecretStr=Field(min_length=12,max_length=200)
+    confirm_password: SecretStr=Field(min_length=12,max_length=200)
 class Member(Contract):
     name: str=Field(min_length=1,max_length=120)
     email: str=Field(min_length=3,max_length=200,pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')

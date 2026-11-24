@@ -396,7 +396,7 @@ function PricingSection() {
       price: '499',
       period: '/ month USD',
       trial: '3 Months Free Trial Included',
-      stripeLink: 'https://buy.stripe.com/test_cNiaEPfXtfSZ5Bf9KncjS0j',
+      stripeLink: 'https://buy.stripe.com/00w14f7ds9y5g9x1VY2oE0G',
       featured: false,
       features: [
         '1 Legal Entity Included',
@@ -415,7 +415,7 @@ function PricingSection() {
       price: '1,299',
       period: '/ month USD',
       trial: '3 Months Free Trial Included',
-      stripeLink: 'https://buy.stripe.com/test_6oU9AL3aHayF4xb5u7cjS0k',
+      stripeLink: 'https://buy.stripe.com/14A8wH0P45hP5uT3022oE0F',
       featured: true,
       features: [
         'Up to 5 Legal Entities',
@@ -434,7 +434,7 @@ function PricingSection() {
       price: '2,999',
       period: '/ month USD',
       trial: '3 Months Free Trial Included',
-      stripeLink: 'https://buy.stripe.com/test_eVqaEPeTpeOVfbPbSvcjS0l',
+      stripeLink: 'https://buy.stripe.com/fZubIT8hw9y54qP9oq2oE0E',
       featured: false,
       features: [
         'Unlimited Legal Entities & Subsidiaries',
@@ -528,11 +528,11 @@ function PricingSection() {
           </p>
         </div>
         <a
-          href="mailto:bjtmusic12@gmail.com?subject=AI%20Finance%20OS%20Enquiry%20%26%20Support"
+          href="mailto:contact@apolloaiglobalcompany.com?subject=AI%20Finance%20OS%20Enquiry%20%26%20Support"
           className="checkout-btn primary-checkout"
           style={{ padding: '10px 22px', fontSize: '14px' }}
         >
-          ✉️ bjtmusic12@gmail.com
+          ✉️ contact@apolloaiglobalcompany.com
         </a>
       </div>
     </div>
@@ -592,7 +592,11 @@ function JournalEditor({ accounts, entity, save, proposal, busy }) {
 function App() {
   const [token, K] = useState('');
   const [user, U] = useState(null);
-  const [signup, G] = useState(false);
+  const [authView, setAuthView] = useState(() => new URLSearchParams(window.location.search).get('reset_token') ? 'reset' : 'login');
+  const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get('reset_token') || '');
+  const [resetLinkPreview, setResetLinkPreview] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const signup = authView === 'signup';
   const [tab, T] = useState('Overview');
   const [busy, B] = useState(false);
   const [error, E] = useState('');
@@ -649,10 +653,14 @@ function App() {
       ...opts,
       headers: { ...(auth ? { Authorization: 'Bearer ' + auth } : {}), ...opts.headers }
     });
+    const contentType = r.headers.get('content-type') || '';
     if (!r.ok) {
-      const b = await r.json().catch(() => ({ detail: r.statusText }));
+      const b = contentType.includes('application/json') ? await r.json().catch(() => ({ detail: r.statusText })) : { detail: r.statusText };
       if (r.status === 401 && auth) { K(''); U(null); }
       throw Error(typeof b.detail === 'string' ? b.detail : JSON.stringify(b.detail));
+    }
+    if (!contentType.includes('application/json')) {
+      throw Error('Backend API service is not connected on this domain. Please contact contact@apolloaiglobalcompany.com for support.');
     }
     return r.json();
   }
@@ -851,10 +859,10 @@ function App() {
                 🎁 View Plans & 3 Months Free Trial ($499 - $2,999/mo) →
               </button>
               <a
-                href="mailto:bjtmusic12@gmail.com?subject=AI%20Finance%20OS%20Customer%20Enquiry"
+                href="mailto:contact@apolloaiglobalcompany.com?subject=AI%20Finance%20OS%20Customer%20Enquiry"
                 style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none', fontWeight: '600' }}
               >
-                💬 Enquiries: <span style={{ color: 'var(--accent)' }}>bjtmusic12@gmail.com</span>
+                💬 Enquiries: <span style={{ color: 'var(--accent)' }}>contact@apolloaiglobalcompany.com</span>
               </a>
             </div>
           </div>
@@ -862,91 +870,284 @@ function App() {
           {/* Right Column: Authentication Box */}
           <div className="auth-card-wrap">
             <div className="auth-card">
-              <div className="auth-tabs">
-                <button
-                  type="button"
-                  className={'auth-tab-btn ' + (!signup ? 'active' : '')}
-                  onClick={() => { G(false); E(''); }}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  className={'auth-tab-btn ' + (signup ? 'active' : '')}
-                  onClick={() => { G(true); E(''); }}
-                >
-                  Create Workspace
-                </button>
-              </div>
+              {(authView === 'login' || authView === 'signup') && (
+                <div className="auth-tabs">
+                  <button
+                    type="button"
+                    className={'auth-tab-btn ' + (authView === 'login' ? 'active' : '')}
+                    onClick={() => { setAuthView('login'); E(''); setAuthNotice(''); setResetLinkPreview(''); }}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    className={'auth-tab-btn ' + (authView === 'signup' ? 'active' : '')}
+                    onClick={() => { setAuthView('signup'); E(''); setAuthNotice(''); setResetLinkPreview(''); }}
+                  >
+                    Create Workspace
+                  </button>
+                </div>
+              )}
 
               <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 6px' }}>
-                {signup ? 'Create Your Organization' : 'Welcome Back'}
+                {authView === 'signup'
+                  ? 'Create Your Organization'
+                  : authView === 'forgot'
+                    ? 'Forgot Password'
+                    : authView === 'reset'
+                      ? 'Update Password'
+                      : 'Welcome Back'}
               </h2>
               <p className="muted" style={{ margin: '0 0 20px', fontSize: '13px' }}>
-                {signup
+                {authView === 'signup'
                   ? 'Set up your multi-entity financial workspace with 90 days free.'
-                  : 'Sign in to access your ledger intelligence and close controls.'}
+                  : authView === 'forgot'
+                    ? 'Enter your registered email address to receive an update password link.'
+                    : authView === 'reset'
+                      ? 'Set a new password and confirm it to regain access to your account.'
+                      : 'Sign in to access your ledger intelligence and close controls.'}
               </p>
 
               {error && <div role="alert" className="error" style={{ marginBottom: '16px' }}>{error}</div>}
+              {authNotice && <div role="status" className="success" style={{ marginBottom: '16px' }}>{authNotice}</div>}
 
-              <form onSubmit={async e => {
-                e.preventDefault();
-                const body = values(e);
-                B(true); E('');
-                try {
-                  let result;
-                  if (body.email === 'bhuvanjakkula@gmail.com' || (!body.email && !signup)) {
-                    result = await request('/auth/local-owner', { method: 'POST' }, '');
-                  } else {
-                    result = await request(signup ? '/auth/register' : '/auth/login', {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+              {authView === 'forgot' ? (
+                <form onSubmit={async e => {
+                  e.preventDefault();
+                  const body = values(e);
+                  B(true); E(''); setAuthNotice(''); setResetLinkPreview('');
+                  try {
+                    const result = await request('/auth/forgot-password', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: body.email, slug: body.slug || null })
                     }, '');
-                  }
-                  K(result.token); U(result.user);
-                } catch (ex) { E(ex.message); } finally { B(false); }
-              }}>
-                <div className="formgrid single">
-                  {signup && (
-                    <>
-                      <Field label="Organization Name" name="organization" placeholder="e.g. Acme Holdings Inc." required />
-                      <Field label="Your Full Name" name="name" placeholder="e.g. Jane Doe" required />
-                    </>
-                  )}
-                  <Field
-                    label="Organization ID"
-                    name="slug"
-                    placeholder="e.g. atlas-finance"
-                    pattern="[a-z0-9-]{3,60}"
-                    required={false}
-                  />
-                  <Field
-                    label="Email Address"
-                    name="email"
-                    type="email"
-                    autoComplete="username"
-                    defaultValue="bhuvanjakkula@gmail.com"
-                  />
-                  <Field
-                    label="Password"
-                    name="password"
-                    type="password"
-                    required={false}
-                    maxLength={200}
-                    autoComplete={signup ? 'new-password' : 'current-password'}
-                    placeholder={signup ? 'Minimum 12 characters' : 'Enter your password'}
-                  />
-                </div>
+                    setAuthNotice(result.message || 'If an account with that registered email exists, an update password link has been sent.');
+                    if (result.reset_url) {
+                      setResetLinkPreview(result.reset_url);
+                    }
+                  } catch (ex) { E(ex.message); } finally { B(false); }
+                }}>
+                  <div className="formgrid single">
+                    <Field
+                      label="Organization ID (optional)"
+                      name="slug"
+                      placeholder="e.g. atlas-finance"
+                      pattern="[a-z0-9-]{3,60}"
+                      required={false}
+                    />
+                    <Field
+                      label="Registered Email Address"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@company.com"
+                      required
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  className="primary wide"
-                  style={{ marginTop: '16px', padding: '12px', fontSize: '14px', fontWeight: '700' }}
-                  disabled={busy}
-                >
-                  {busy ? 'Verifying credentials…' : signup ? 'Create Organization →' : 'Sign In to Workspace →'}
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    className="primary wide"
+                    style={{ marginTop: '16px', padding: '12px', fontSize: '14px', fontWeight: '700' }}
+                    disabled={busy}
+                  >
+                    {busy ? 'Sending reset link…' : 'Send Update Password Link →'}
+                  </button>
+
+                  {resetLinkPreview && (
+                    <div style={{ marginTop: '14px', padding: '12px', borderRadius: '10px', background: 'var(--accent-light)', border: '1px solid var(--accent)', textAlign: 'center' }}>
+                      <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>
+                        Your update password link is ready:
+                      </p>
+                      <button
+                        type="button"
+                        className="primary"
+                        style={{ padding: '8px 16px', fontSize: '13px', fontWeight: '700' }}
+                        onClick={() => {
+                          try {
+                            const url = new URL(resetLinkPreview);
+                            const tok = url.searchParams.get('reset_token') || '';
+                            setResetToken(tok);
+                          } catch {
+                            setResetToken('');
+                          }
+                          setAuthView('reset');
+                          E('');
+                          setAuthNotice('');
+                        }}
+                      >
+                        Open Update Password Form →
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className="linkbutton"
+                      style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '13px' }}
+                      onClick={() => { setAuthView('login'); E(''); setAuthNotice(''); setResetLinkPreview(''); }}
+                    >
+                      ← Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              ) : authView === 'reset' ? (
+                <form onSubmit={async e => {
+                  e.preventDefault();
+                  const body = values(e);
+                  if (body.new_password !== body.confirm_password) {
+                    E('New password and confirmation password do not match.');
+                    return;
+                  }
+                  if (!resetToken) {
+                    E('Missing or invalid password reset link. Please request a new reset link.');
+                    return;
+                  }
+                  B(true); E(''); setAuthNotice('');
+                  try {
+                    const result = await request('/auth/reset-password', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        token: resetToken,
+                        new_password: body.new_password,
+                        confirm_password: body.confirm_password
+                      })
+                    }, '');
+                    if (window.location.search.includes('reset_token')) {
+                      window.history.replaceState({}, '', window.location.pathname);
+                    }
+                    setResetToken('');
+                    setResetLinkPreview('');
+                    setAuthNotice(result.message || 'Password updated successfully. You can now sign in with your new password.');
+                    setAuthView('login');
+                  } catch (ex) { E(ex.message); } finally { B(false); }
+                }}>
+                  <div className="formgrid single">
+                    <Field
+                      label="New Password"
+                      name="new_password"
+                      type="password"
+                      required
+                      minLength={12}
+                      maxLength={200}
+                      autoComplete="new-password"
+                      placeholder="Minimum 12 characters"
+                    />
+                    <Field
+                      label="Confirmation Password"
+                      name="confirm_password"
+                      type="password"
+                      required
+                      minLength={12}
+                      maxLength={200}
+                      autoComplete="new-password"
+                      placeholder="Re-enter your new password"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="primary wide"
+                    style={{ marginTop: '16px', padding: '12px', fontSize: '14px', fontWeight: '700' }}
+                    disabled={busy}
+                  >
+                    {busy ? 'Updating password…' : 'Update Password →'}
+                  </button>
+
+                  <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className="linkbutton"
+                      style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '13px' }}
+                      onClick={() => {
+                        if (window.location.search.includes('reset_token')) {
+                          window.history.replaceState({}, '', window.location.pathname);
+                        }
+                        setResetToken('');
+                        setAuthView('login');
+                        E('');
+                        setAuthNotice('');
+                      }}
+                    >
+                      ← Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={async e => {
+                  e.preventDefault();
+                  const body = values(e);
+                  B(true); E(''); setAuthNotice('');
+                  try {
+                    let result;
+                    if (body.email === 'bhuvanjakkula@gmail.com' || (!body.email && !signup)) {
+                      result = await request('/auth/local-owner', { method: 'POST' }, '');
+                    } else {
+                      result = await request(signup ? '/auth/register' : '/auth/login', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                      }, '');
+                    }
+                    K(result.token); U(result.user);
+                  } catch (ex) { E(ex.message); } finally { B(false); }
+                }}>
+                  <div className="formgrid single">
+                    {signup && (
+                      <>
+                        <Field label="Organization Name" name="organization" placeholder="e.g. Acme Holdings Inc." required />
+                        <Field label="Your Full Name" name="name" placeholder="e.g. Jane Doe" required />
+                      </>
+                    )}
+                    <Field
+                      label="Organization ID"
+                      name="slug"
+                      placeholder="e.g. atlas-finance"
+                      pattern="[a-z0-9-]{3,60}"
+                      required={false}
+                    />
+                    <Field
+                      label="Email Address"
+                      name="email"
+                      type="email"
+                      autoComplete="username"
+                      defaultValue="bhuvanjakkula@gmail.com"
+                    />
+                    <Field
+                      label="Password"
+                      name="password"
+                      type="password"
+                      required={false}
+                      maxLength={200}
+                      autoComplete={signup ? 'new-password' : 'current-password'}
+                      placeholder={signup ? 'Minimum 12 characters' : 'Enter your password'}
+                    />
+                  </div>
+
+                  {!signup && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        className="linkbutton"
+                        style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '12px' }}
+                        onClick={() => { setAuthView('forgot'); E(''); setAuthNotice(''); setResetLinkPreview(''); }}
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="primary wide"
+                    style={{ marginTop: '14px', padding: '12px', fontSize: '14px', fontWeight: '700' }}
+                    disabled={busy}
+                  >
+                    {busy ? 'Verifying credentials…' : signup ? 'Create Organization →' : 'Sign In to Workspace →'}
+                  </button>
+                </form>
+              )}
 
               <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--card-border)', textAlign: 'center' }}>
                 <button
@@ -958,7 +1159,7 @@ function App() {
                   🎁 View Pricing & 3-Month Free Trial Plans
                 </button>
                 <p className="muted" style={{ margin: '8px 0 0', fontSize: '12px' }}>
-                  Customer Support & Sales: <a href="mailto:bjtmusic12@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>bjtmusic12@gmail.com</a>
+                  Customer Support & Sales: <a href="mailto:contact@apolloaiglobalcompany.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>contact@apolloaiglobalcompany.com</a>
                 </p>
               </div>
             </div>
@@ -1034,7 +1235,7 @@ function App() {
       <footer className="landing-footer">
         <div>◈ <strong>AI Finance OS</strong> · Enterprise Autonomous Financial Platform</div>
         <div>
-          Customer Support & Inquiries: <a href="mailto:bjtmusic12@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>bjtmusic12@gmail.com</a>
+          Customer Support & Inquiries: <a href="mailto:contact@apolloaiglobalcompany.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>contact@apolloaiglobalcompany.com</a>
         </div>
       </footer>
     </div>
@@ -1063,7 +1264,7 @@ function App() {
           <b>{user?.name}</b><br />
           {user?.role}
           <div style={{ margin: '6px 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-            Support: <a href="mailto:bjtmusic12@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none' }}>bjtmusic12@gmail.com</a>
+            Support: <a href="mailto:contact@apolloaiglobalcompany.com" style={{ color: 'var(--accent)', textDecoration: 'none' }}>contact@apolloaiglobalcompany.com</a>
           </div>
           <button onClick={async () => { await request('/auth/logout', { method: 'POST' }).catch(() => {}); K(''); U(null); }}>
             Sign out
@@ -2158,7 +2359,7 @@ function App() {
         ))}
 
         <footer>
-          AI Finance OS · Enterprise Platform · {data.entities.length} entities · Customer Support & Enquiries: <a href="mailto:bjtmusic12@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>bjtmusic12@gmail.com</a>
+          AI Finance OS · Enterprise Platform · {data.entities.length} entities · Customer Support & Enquiries: <a href="mailto:contact@apolloaiglobalcompany.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' }}>contact@apolloaiglobalcompany.com</a>
         </footer>
       </main>
     </div>
