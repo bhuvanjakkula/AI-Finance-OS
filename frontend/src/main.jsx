@@ -737,7 +737,10 @@ function App() {
   async function download(path, name) {
     try {
       const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
-      if (!r.ok) throw Error('Download failed');
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({ detail: 'Download failed' }));
+        throw Error(typeof b.detail === 'string' ? b.detail : 'Download failed');
+      }
       const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
       a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url);
     } catch (e) { E(e.message); }
@@ -760,7 +763,11 @@ function App() {
   }
 
   async function openExecutiveDeck() {
-    B(true);
+    if (!entityId) {
+      E('Select a legal entity or click "Load example workspace" first to generate an Executive Board Deck.');
+      return;
+    }
+    B(true); E('');
     try {
       const res = await request(`/executive/deck?entity_id=${entityId}&period=${period}`);
       setDeckData(res);
@@ -1080,10 +1087,25 @@ function App() {
                 <form onSubmit={async e => {
                   e.preventDefault();
                   const body = values(e);
+                  if (signup) {
+                    if (!body.slug || !body.slug.trim()) {
+                      const generated = (body.organization || 'workspace')
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '')
+                        .slice(0, 50);
+                      body.slug = generated.length >= 3 ? generated : (generated + '-org').slice(0, 50);
+                    }
+                    if (!body.password || body.password.length < 12) {
+                      E('Password must be at least 12 characters long.');
+                      return;
+                    }
+                  }
                   B(true); E(''); setAuthNotice('');
                   try {
                     let result;
-                    if (!body.email && !signup) {
+                    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+                    if (!body.email && !signup && isLocal) {
                       result = await request('/auth/local-owner', { method: 'POST' }, '');
                     } else {
                       result = await request(signup ? '/auth/register' : '/auth/login', {
@@ -1101,7 +1123,7 @@ function App() {
                       </>
                     )}
                     <Field
-                      label="Organization ID"
+                      label={signup ? 'Organization ID (auto-generated if blank)' : 'Organization ID (optional)'}
                       name="slug"
                       placeholder="e.g. atlas-finance"
                       pattern="[a-z0-9-]{3,60}"
@@ -1113,12 +1135,14 @@ function App() {
                       type="email"
                       autoComplete="username"
                       placeholder="you@company.com"
+                      required
                     />
                     <Field
                       label="Password"
                       name="password"
                       type="password"
-                      required={false}
+                      required
+                      minLength={signup ? 12 : 1}
                       maxLength={200}
                       autoComplete={signup ? 'new-password' : 'current-password'}
                       placeholder={signup ? 'Minimum 12 characters' : 'Enter your password'}

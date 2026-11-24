@@ -19,8 +19,12 @@ def encode(value): return base64.b64encode(value).decode('ascii')
 def decode(value): return base64.b64decode(value,validate=True)
 def canonical(value): return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
 def key_path():
+    if os.getenv('FINANCE_KEYRING_FILE'):
+        return Path(os.getenv('FINANCE_KEYRING_FILE'))
+    if os.getenv('VERCEL'):
+        return Path('/tmp/finance-keyring.json')
     local=Path(os.getenv('LOCALAPPDATA',str(Path.home()/'.local/share')))/'AIFinanceOS/security/keyring.json'
-    return Path(os.getenv('FINANCE_KEYRING_FILE',str(local)))
+    return local
 KEY_REGISTRY = {}
 
 @lru_cache(maxsize=16)

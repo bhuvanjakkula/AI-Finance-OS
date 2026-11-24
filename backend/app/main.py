@@ -39,7 +39,7 @@ _cors_raw = os.getenv('CORS_ORIGINS', '*')
 _allowed_origins = ['*'] if _cors_raw == '*' else [o.strip() for o in _cors_raw.split(',') if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_methods=['*'], allow_headers=['*'], allow_credentials=False if '*' in _allowed_origins else True)
 app.add_middleware(SecurityHeaders)
-_hosts_raw = os.getenv('FINANCE_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver')
+_hosts_raw = os.getenv('FINANCE_ALLOWED_HOSTS', '*' if os.getenv('VERCEL') else 'localhost,127.0.0.1,testserver')
 _allowed_hosts = ['*'] if _hosts_raw == '*' else [h.strip() for h in _hosts_raw.split(',') if h.strip()]
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 
@@ -124,13 +124,34 @@ def local_owner_access(request:Request,db:Session=Depends(db_session)):
 @app.post('/auth/login')
 def login(body:Login,request:Request,db:Session=Depends(db_session)):
     login_limit(request,body.slug)
-    org=db.scalar(select(Organization).where(Organization.slug==body.slug))
-    user=db.scalar(select(User).where(User.org_id==org.id,User.email==body.email.lower())) if org else None
+    slug=(body.slug or '').strip()
+    org=db.scalar(select(Organization).where(Organization.slug==slug)) if slug else None
+    user=db.scalar(select(User).where(User.org_id==org.id,User.email==body.email.lower())) if org else (db.scalar(select(User).where(User.email==body.email.lower())) if not slug else None)
     if not user or not verify_password(body.password.get_secret_value(),user.password_hash): raise HTTPException(401,'Invalid organization or credentials')
     finance.audit(db,Principal(user.org_id,user.id,user.role,user.name),'user_signed_in',user.id)
     return issue_session(db,user)
 
 def _send_password_reset_email(to_email:str,reset_url:str)->bool:
+    sender=os.getenv('SMTP_FROM','contact@apolloaiglobalcompany.com').strip()
+    resend_key=os.getenv('RESEND_API_KEY','').strip()
+    if resend_key:
+        r=httpx.post(
+            'https://api.resend.com/emails',
+            headers={'Authorization':f'Bearer {resend_key}','Content-Type':'application/json'},
+            json={
+                'from':os.getenv('RESEND_FROM',sender),
+                'to':[to_email],
+                'subject':'AI Finance OS - Update Your Password',
+                'text':(
+                    f"Hello,\n\nWe received a request to reset your AI Finance OS password.\n\n"
+                    f"Click the link below to set a new password (valid for 30 minutes):\n{reset_url}\n\n"
+                    f"If you did not request this change, you can safely ignore this email or contact {sender}.\n"
+                ),
+            },
+            timeout=10.0,
+        )
+        if r.is_success:
+            return True
     host=os.getenv('SMTP_HOST','').strip()
     if not host: return False
     import smtplib

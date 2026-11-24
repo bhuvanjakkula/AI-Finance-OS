@@ -171,7 +171,7 @@ def simulate_copilot_scenario(db: Session, org_id: str, entity_id: str, payload:
     recommendations = [
         "Enforce strict Net-15 terms on new receivables to neutralize collection drag." if delay_days > 10 else "Maintain current working capital collections rhythm.",
         f"Target a minimum monthly revenue threshold of ${round(sim_exp, 2):,} to maintain operational breakeven.",
-        "Consider establishing a ${25,000:,} liquidity safety buffer before committing to additional capex." if ending_cash < 50000 else "Balance sheet maintains strong headroom to self-fund planned investments."
+        "Consider establishing a $25,000 liquidity safety buffer before committing to additional capex." if ending_cash < 50000 else "Balance sheet maintains strong headroom to self-fund planned investments."
     ]
 
     return {
