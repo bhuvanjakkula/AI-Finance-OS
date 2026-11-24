@@ -919,7 +919,7 @@ function App() {
               {authNotice && <div role="status" className="success" style={{ marginBottom: '16px' }}>{authNotice}</div>}
 
               {authView === 'forgot' ? (
-                <form onSubmit={async e => {
+                <form key="forgot" onSubmit={async e => {
                   e.preventDefault();
                   const body = values(e);
                   B(true); E(''); setAuthNotice(''); setResetLinkPreview('');
@@ -1001,7 +1001,7 @@ function App() {
                   </div>
                 </form>
               ) : authView === 'reset' ? (
-                <form onSubmit={async e => {
+                <form key="reset" onSubmit={async e => {
                   e.preventDefault();
                   const body = values(e);
                   if (body.new_password !== body.confirm_password) {
@@ -1084,7 +1084,7 @@ function App() {
                   </div>
                 </form>
               ) : (
-                <form onSubmit={async e => {
+                <form key={authView} onSubmit={async e => {
                   e.preventDefault();
                   const body = values(e);
                   if (signup) {
