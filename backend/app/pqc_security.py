@@ -27,14 +27,32 @@ def key_path():
     return local
 KEY_REGISTRY = {}
 
-@lru_cache(maxsize=16)
-def load_keys(path):
-    data=json.loads(Path(path).read_text())
+def _load_from_data(data):
     if data.get('format')!='finance-keyring-v1': raise ValueError('Invalid keyring format')
     res = (data,MLKEM768PrivateKey.from_seed_bytes(decode(data['kem_seed'])),MLDSA65PrivateKey.from_seed_bytes(decode(data['signing_seed'])))
     KEY_REGISTRY[data['key_id']] = res
     return res
+
+@lru_cache(maxsize=16)
+def load_keys(path):
+    return _load_from_data(json.loads(Path(path).read_text()))
+
+@lru_cache(maxsize=4)
+def _serverless_keys(seed_material: str):
+    raw = seed_material.encode('utf-8')
+    kem_seed = HKDF(algorithm=hashes.SHA256(), length=64, salt=None, info=b'finance-mlkem-768-v1').derive(raw)
+    sign_seed = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b'finance-mldsa-65-v1').derive(raw)
+    key_id = hashlib.sha256(b'finance-key-id-v1:' + raw).hexdigest()[:32]
+    data = {'format':'finance-keyring-v1','key_id':key_id,'kem_seed':encode(kem_seed),'signing_seed':encode(sign_seed)}
+    return _load_from_data(data)
+
 def keys():
+    env_json = os.getenv('FINANCE_KEYRING_JSON', '').strip()
+    if env_json:
+        return _load_from_data(json.loads(env_json))
+    if os.getenv('VERCEL') and not os.getenv('FINANCE_KEYRING_FILE'):
+        seed = os.getenv('FINANCE_KEY_SEED') or os.getenv('DATABASE_URL') or os.getenv('POSTGRES_URL') or 'ai-finance-os-vercel'
+        return _serverless_keys(seed)
     path=key_path()
     if not path.is_file():
         try:

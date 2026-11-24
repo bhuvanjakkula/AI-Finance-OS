@@ -940,7 +940,7 @@ function App() {
                       label="Organization ID (optional)"
                       name="slug"
                       placeholder="e.g. atlas-finance"
-                      pattern="[a-z0-9-]{3,60}"
+                      pattern="[a-z0-9\-]{3,60}"
                       required={false}
                     />
                     <Field
@@ -1126,7 +1126,7 @@ function App() {
                       label={signup ? 'Organization ID (auto-generated if blank)' : 'Organization ID (optional)'}
                       name="slug"
                       placeholder="e.g. atlas-finance"
-                      pattern="[a-z0-9-]{3,60}"
+                      pattern="[a-z0-9\-]{3,60}"
                       required={false}
                     />
                     <Field
