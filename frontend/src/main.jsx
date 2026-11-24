@@ -1083,7 +1083,7 @@ function App() {
                   B(true); E(''); setAuthNotice('');
                   try {
                     let result;
-                    if (body.email === 'bhuvanjakkula@gmail.com' || (!body.email && !signup)) {
+                    if (!body.email && !signup) {
                       result = await request('/auth/local-owner', { method: 'POST' }, '');
                     } else {
                       result = await request(signup ? '/auth/register' : '/auth/login', {
@@ -1112,7 +1112,7 @@ function App() {
                       name="email"
                       type="email"
                       autoComplete="username"
-                      defaultValue="bhuvanjakkula@gmail.com"
+                      placeholder="you@company.com"
                     />
                     <Field
                       label="Password"
